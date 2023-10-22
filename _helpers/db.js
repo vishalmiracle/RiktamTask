@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const connectionOptions = {
   dbName: `GroupChat`,
 };
-mongoose.connect("mongodb+srv://user1:user1@cluster0.b7yothp.mongodb.net/", connectionOptions);
+mongoose.connect(process.env.DB_CRED, connectionOptions);
 mongoose.Promise = global.Promise;
 
 module.exports = {
