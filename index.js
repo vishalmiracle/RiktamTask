@@ -27,7 +27,7 @@ io.on("connection", (socket) => {
     try {
       // Retrieve entire message history from the database for the specific room
       const messages = await groupChat.find({ roomId });
-      socket.emit("messageHistory", messages);
+      socket.emit("messageHistory", messages.sort((x,y)=>x.timestamp-y.timestamp));
     } catch (error) {
       console.error("Error fetching message history:", error);
     }
@@ -217,7 +217,7 @@ app.get("/api/getGroupListForUser/:userId", async (req, res) => {
 
 //add participant in group or remove
 app.patch("/api/addParticipants", async (req, res) => {
-  const { participants, roomId } = req.body; // Assuming emails is an array of email addresses sent in the request body
+  const { likeBy, _id } = req.body; // Assuming emails is an array of email addresses sent in the request body
 
   try {
     // Find the group by roomId and update the participants array with the new emails
@@ -226,8 +226,8 @@ app.patch("/api/addParticipants", async (req, res) => {
         timestamp: Date.now(),
       };
   
-    const updatedGroup = await groups.findOneAndUpdate(
-      { roomId: roomId },
+    const updatedGroup = await groupChat.findOneAndUpdate(
+      { _id: roomId },
       query, // 
       { new: true } 
     );
@@ -242,6 +242,55 @@ app.patch("/api/addParticipants", async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
+
+
+app.patch("/api/updateMessage", async (req, res) => {
+  const { participant, roomId,_id,add } = req.body; // Assuming emails is an array of email addresses sent in the request body
+
+  try {
+    // Find the group by roomId and update the participants array with the new emails
+   var query ={}
+    if (add){
+     query = {
+      $push: { like: { $each: [participant] } },
+     
+    };
+   }
+   else {
+     query = {
+      $pull: { like: participant }, // Remove the specified participant from the 'like' array
+    // Update the timestamp
+    };
+   }
+    
+  
+    const updatedGroup = await groupChat.findOneAndUpdate(
+      { roomId: roomId,_id:_id },
+      query, // 
+      { new: true } 
+    );
+  
+
+    if (updatedGroup) {
+
+      io.to(roomId).emit("updateMessage", {
+     
+        ...updatedGroup,
+      });
+      res.json(updatedGroup);
+    } else {
+      res.status(404).json({ message: "Message not found" });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+
+
+
 
 //delete group
 app.delete("/api/deleteGroup/:roomId", async (req, res) => {
