@@ -117,12 +117,12 @@ app.post("/api/createUser", async (req, res) => {
   }
 });
 
-app.post("/api/getUserList", async (req, res) => {
-  const users = await users.find({}, { password: 0 });
+app.get("/api/getUserList", async (req, res) => {
+  const usersList = await users.find({}, { password: 0 });
   try {
     return res
       .status(200)
-      .json({ data: { ...users }, message: "Users fetched succesfully" });
+      .json({ data: usersList , message: "Users fetched succesfully" });
   } catch (error) {
     console.error("Error saving message:", error);
     return res.status(500).json({ error: "Internal Server Error" });
@@ -187,11 +187,12 @@ app.post("/api/createGroup", async (req, res) => {
 
 app.get("/api/getGroupList/:groupId", async (req, res) => {
   const roomId = req.params.groupId;
+  console.log()
   var groupList = [];
   if (roomId == 0) {
     groupList = await groups.find();
   } else {
-    groupList = await groups.find({ participants: { $in: [roomId] } });
+    groupList = await groups.find({roomId:roomId });
   }
 
   return res.status(200).json({
@@ -200,20 +201,7 @@ app.get("/api/getGroupList/:groupId", async (req, res) => {
   });
 });
 
-app.get("/api/getGroupList/:groupId", async (req, res) => {
-  const roomId = req.params.groupId;
-  var groupList = [];
-  if (roomId == 0) {
-    groupList = await groups.find();
-  } else {
-    groupList = await groups.find({ participants: { $in: [roomId] } });
-  }
 
-  return res.status(200).json({
-    data: groupList,
-    message: "Group list fetched successfully",
-  });
-});
 
 app.get("/api/getGroupListForUser/:userId", async (req, res) => {
   const userId = req.params.userId;
@@ -229,21 +217,19 @@ app.get("/api/getGroupListForUser/:userId", async (req, res) => {
 
 //add participant in group or remove
 app.patch("/api/addParticipants", async (req, res) => {
-  const { participants, roomId, add } = req.body; // Assuming emails is an array of email addresses sent in the request body
+  const { participants, roomId } = req.body; // Assuming emails is an array of email addresses sent in the request body
 
   try {
     // Find the group by roomId and update the participants array with the new emails
-    var query;
-    if (add)
-      query = {
-        $push: { participants: { $each: participants } },
+    var query = {
+        $set: { participants: participants },
         timestamp: Date.now(),
       };
-    else query = { $pull: { participants: { $in: participants } } , timestamp: Date.now()};
+  
     const updatedGroup = await groups.findOneAndUpdate(
       { roomId: roomId },
-      query, // $each allows pushing multiple values
-      { new: true } // To return the updated document
+      query, // 
+      { new: true } 
     );
 
     if (updatedGroup) {
