@@ -8,9 +8,8 @@ app.use(cors());
 const bcrypt = require("bcrypt");
 const saltRounds = 10;
 const short = require("shortid");
-const dotenv = require('dotenv');
+const dotenv = require("dotenv");
 dotenv.config();
-
 
 const server = http.createServer(app);
 
@@ -30,7 +29,10 @@ io.on("connection", (socket) => {
     try {
       // Retrieve entire message history from the database for the specific room
       const messages = await groupChat.find({ roomId });
-      socket.emit("messageHistory", messages.sort((x,y)=>x.timestamp-y.timestamp));
+      socket.emit(
+        "messageHistory",
+        messages.sort((x, y) => x.timestamp - y.timestamp)
+      );
     } catch (error) {
       console.error("Error fetching message history:", error);
     }
@@ -120,12 +122,50 @@ app.post("/api/createUser", async (req, res) => {
   }
 });
 
+app.patch("/api/updateUserInfo", async (req, res) => {
+  const { userId, password, firstName, lastName, role } = req.body;
+
+  try {
+    // specify the criteria to find the user
+    const updatedValues = {
+      $set: {
+        firstName: firstName,
+        lastName: lastName,
+        role: role,
+        password: await bcrypt.hash(password, saltRounds),
+      },
+    };
+
+    const result = await users.findOneAndUpdate(
+      { userId: userId },
+      updatedValues,
+      { new: true }
+    );
+    console.log("result",result);
+    return res.status(200).json({
+      data: {
+        _id: result._id,
+        createdAt: result.createdAt,
+        updatedOn: result.updatedOn,
+        firstname: result.firstName,
+        lastName: result.lastName,
+        role: result.role,
+        userId: result.userId,
+      },
+      message: `User ${firstName} edited successfully`,
+    });
+  } catch (error) {
+    console.error("Error saving message:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 app.get("/api/getUserList", async (req, res) => {
   const usersList = await users.find({}, { password: 0 });
   try {
     return res
       .status(200)
-      .json({ data: usersList , message: "Users fetched succesfully" });
+      .json({ data: usersList, message: "Users fetched succesfully" });
   } catch (error) {
     console.error("Error saving message:", error);
     return res.status(500).json({ error: "Internal Server Error" });
@@ -133,37 +173,37 @@ app.get("/api/getUserList", async (req, res) => {
 });
 
 app.post("/api/login", async (req, res) => {
-
   const { userId, password } = req.body;
-if(userId=="adminrik"&&password=="adminrik"){
-  res
-        .status(200)
-        .json({ message: "Login successful!", user: {
-          userId:"adminrik",
-          password:"adminrik",
-          role:'admin'
-        } });
-}
-else{
-  const existingUser = await users.findOne({ userId: userId });
-  if (existingUser) {
-    const isPasswordMatch = await bcrypt.compare(
-      password,
-      existingUser.password
-    );
+  if (userId == "adminrik" && password == "adminrik") {
+    res.status(200).json({
+      message: "Login successful!",
+      user: {
+        userId: "adminrik",
+        password: "adminrik",
+        role: "admin",
+        firstName: "Admin",
+        lastName: "",
+      },
+    });
+  } else {
+    const existingUser = await users.findOne({ userId: userId });
+    if (existingUser) {
+      const isPasswordMatch = await bcrypt.compare(
+        password,
+        existingUser.password
+      );
 
-    if (isPasswordMatch) {
-      res
-        .status(200)
-        .json({ message: "Login successful!", user: existingUser });
+      if (isPasswordMatch) {
+        res
+          .status(200)
+          .json({ message: "Login successful!", user: existingUser });
+      } else {
+        res.status(401).json({ message: "Invalid username or password" });
+      }
     } else {
       res.status(401).json({ message: "Invalid username or password" });
     }
-  } else {
-    res.status(401).json({ message: "Invalid username or password" });
   }
-}
-
 });
 
 // Groups
@@ -206,7 +246,7 @@ app.get("/api/getGroupList/:groupId", async (req, res) => {
   if (roomId == 0) {
     groupList = await groups.find();
   } else {
-    groupList = await groups.find({roomId:roomId });
+    groupList = await groups.find({ roomId: roomId });
   }
 
   return res.status(200).json({
@@ -214,8 +254,6 @@ app.get("/api/getGroupList/:groupId", async (req, res) => {
     message: "Group list fetched successfully",
   });
 });
-
-
 
 app.get("/api/getGroupListForUser/:userId", async (req, res) => {
   const userId = req.params.userId;
@@ -228,22 +266,21 @@ app.get("/api/getGroupListForUser/:userId", async (req, res) => {
   });
 });
 
-
 //add participant in group or remove
 app.patch("/api/addParticipants", async (req, res) => {
-  const { participants,roomId } = req.body; // Assuming emails is an array of email addresses sent in the request body
+  const { participants, roomId } = req.body; // Assuming emails is an array of email addresses sent in the request body
 
   try {
     // Find the group by roomId and update the participants array with the new emails
     var query = {
-        $set: { participants: participants },
-        timestamp: Date.now(),
-      };
-  
+      $set: { participants: participants },
+      timestamp: Date.now(),
+    };
+
     const updatedGroup = await groupChat.findOneAndUpdate(
       { roomId: roomId },
-      query, // 
-      { new: true } 
+      query, //
+      { new: true }
     );
 
     if (updatedGroup) {
@@ -257,39 +294,31 @@ app.patch("/api/addParticipants", async (req, res) => {
   }
 });
 
-
-
 app.patch("/api/updateMessage", async (req, res) => {
-  const { participant, roomId,_id,add } = req.body; // Assuming emails is an array of email addresses sent in the request body
+  const { participant, roomId, _id, add } = req.body; // Assuming emails is an array of email addresses sent in the request body
 
   try {
     // Find the group by roomId and update the participants array with the new emails
-   var query ={}
-    if (add){
-     query = {
-      $push: { like: { $each: [participant] } },
-     
-    };
-   }
-   else {
-     query = {
-      $pull: { like: participant }, // Remove the specified participant from the 'like' array
-    // Update the timestamp
-    };
-   }
-    
-  
+    var query = {};
+    if (add) {
+      query = {
+        $push: { like: { $each: [participant] } },
+      };
+    } else {
+      query = {
+        $pull: { like: participant }, // Remove the specified participant from the 'like' array
+        // Update the timestamp
+      };
+    }
+
     const updatedGroup = await groupChat.findOneAndUpdate(
-      { roomId: roomId,_id:_id },
-      query, // 
-      { new: true } 
+      { roomId: roomId, _id: _id },
+      query, //
+      { new: true }
     );
-  
 
     if (updatedGroup) {
-
       io.to(roomId).emit("updateMessage", {
-     
         ...updatedGroup,
       });
       res.json(updatedGroup);
@@ -301,10 +330,6 @@ app.patch("/api/updateMessage", async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
-
-
-
-
 
 //delete group
 app.delete("/api/deleteGroup/:roomId", async (req, res) => {
